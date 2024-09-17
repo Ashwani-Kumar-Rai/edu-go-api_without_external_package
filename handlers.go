@@ -22,6 +22,9 @@ func handleClientProfile(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		GetClientProfile(w, r)
+		// Accepting a payload : suppose we want to allow clients to update their name and email
+	case http.MethodPatch:
+		UpdateClientProfile(w, r)
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -47,4 +50,37 @@ func GetClientProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	// write the data as a json to the response writer .
 	json.NewEncoder(w).Encode(response)
+}
+
+// Accepting a payload : suppose we want to allow clients to update their name and email
+func UpdateClientProfile(w http.ResponseWriter, r *http.Request) {
+	var clientId = r.URL.Query().Get("clientId")
+	clientProfile, ok := database[clientId]
+	if !ok || clientId == "" { // checking for valid clientId
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+	// Decode the JSON Payload directly into the struct
+	// for payload data we'll expect it to be in the same form as our client profile type
+	// which we were using in our database , we can try and decode this body into our client profile struct
+	// using the json decoder , the decoder takes a request payload from r.Body and we call the decode function passing in a pointer
+	// to where we want the data to go , if the error value is not nill we throw a bad request error .
+	// Now when we read the body the underline data is actually streamed in on demand I.E the network connection
+	// between the client and the server remains open so we have to close this connection by calling the close function when finished .
+	// this frees up resources and closes the connection .
+	// the defer statement means we execute this line of code before the function exit no matter what .
+	var payloadData ClientProfile
+	if err := json.NewDecoder(r.Body).Decode(&payloadData); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	// Update Profile
+	// we update the profile information and return a success status .
+	clientProfile.Email = payloadData.Email
+	clientProfile.Name = payloadData.Name
+	database[clientProfile.Id] = clientProfile
+
+	w.WriteHeader(http.StatusOK)
 }
